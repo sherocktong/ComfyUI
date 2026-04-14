@@ -315,33 +315,11 @@ class PromptServer():
 
         @routes.get("/")
         async def get_root(request):
-            html_path = os.path.join(self.web_root, "index.html")
-            with open(html_path, 'r', encoding='utf-8') as f:
-                html = f.read()
-
-            theme_script = """<script>
-(function() {
-  var mq = window.matchMedia('(prefers-color-scheme: dark)');
-  function applyTheme(dark) {
-    var cl = document.documentElement.classList;
-    if (dark) cl.add('dark-theme'); else cl.remove('dark-theme');
-  }
-  applyTheme(mq.matches);
-  mq.addEventListener('change', function(e) { applyTheme(e.matches); });
-})();
-</script>"""
-
-            html = html.replace('</head>', theme_script + '</head>')
-
-            response = web.Response(text=html, content_type='text/html')
+            response = web.FileResponse(os.path.join(self.web_root, "index.html"))
             response.headers['Cache-Control'] = 'no-store, must-revalidate'
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
             return response
-
-        @routes.get("/user.css")
-        async def get_user_css(request):
-            return web.Response(text="", content_type="text/css")
 
         @routes.get("/embeddings")
         def get_embeddings(request):
