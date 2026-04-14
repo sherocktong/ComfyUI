@@ -315,11 +315,67 @@ class PromptServer():
 
         @routes.get("/")
         async def get_root(request):
-            response = web.FileResponse(os.path.join(self.web_root, "index.html"))
+            index_path = os.path.join(self.web_root, "index.html")
+            with open(index_path, "r", encoding="utf-8") as f:
+                html = f.read()
+
+            auto_theme_script = """<script>
+(function(){
+  var THEME_CONFIG=null;
+  var PREFERS_DARK=window.matchMedia('(prefers-color-scheme:dark)');
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','/auto-theme.json',true);
+  xhr.onload=function(){
+    if(xhr.status===200){try{THEME_CONFIG=JSON.parse(xhr.responseText)}catch(e){}}
+    init();
+  };
+  xhr.onerror=function(){init();};
+  xhr.send();
+  function getPaletteId(isDark){
+    if(!isDark)return(THEME_CONFIG&&THEME_CONFIG.light)||'light';
+    return(THEME_CONFIG&&THEME_CONFIG.dark)||'dark';
+  }
+  function applyTheme(isDark){
+    var el=document.getElementById('vue-app');
+    if(!el||!el.__vue_app__)return false;
+    var pinia=el.__vue_app__.config.globalProperties.$pinia;
+    if(!pinia)return false;
+    var store=pinia._s.get('colorPalette');
+    if(!store)return false;
+    var target=getPaletteId(isDark);
+    if(store.activePaletteId!==target){store.$patch({activePaletteId:target});}
+    return true;
+  }
+  function init(){
+    if(applyTheme(PREFERS_DARK.matches))return;
+    var attempts=0;
+    var timer=setInterval(function(){
+      if(applyTheme(PREFERS_DARK.matches)||++attempts>60){clearInterval(timer);}
+    },500);
+  }
+  PREFERS_DARK.addEventListener('change',function(e){applyTheme(e.matches);});
+})();
+</script>"""
+
+            html = html.replace("</head>", auto_theme_script + "\n</head>")
+
+            response = web.Response(text=html, content_type="text/html")
             response.headers['Cache-Control'] = 'no-store, must-revalidate'
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
             return response
+
+        @routes.get("/auto-theme.json")
+        async def get_auto_theme(request):
+            user_dir = folder_paths.get_user_directory()
+            config_path = os.path.join(user_dir, "auto-theme.json")
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, "r") as f:
+                        return web.json_response(json.load(f))
+                except (json.JSONDecodeError, IOError):
+                    return web.json_response({})
+            return web.json_response({})
 
         @routes.get("/embeddings")
         def get_embeddings(request):
